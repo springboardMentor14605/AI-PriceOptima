@@ -1,0 +1,19 @@
+Project Title: AI-Based Dynamic Price Optimization
+
+Dataset Name: Retail Price Optimization Dataset
+
+Kaggle Dataset Link:
+https://www.kaggle.com/datasets/suddharshan/retail-price-optimization
+
+Reason for Selecting This Dataset:
+This dataset contains important features required for dynamic pricing such as:
+- Product ID and category
+- Unit price and total price
+- Quantity sold
+- Freight price (shipping cost)
+- Competitor prices
+- Seasonal indicators (month, weekend, holiday)
+- Historical sales data
+
+These features are necessary to build machine learning models
+for demand forecasting and price optimization.
