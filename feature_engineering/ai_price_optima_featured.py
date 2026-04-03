@@ -10,7 +10,7 @@ Original file is located at
 import pandas as pd
 
 # loading the cleaned dataset for feature engg.
-df = pd.read_csv("/content/clean_dynamic_pricing_dataset (1).csv")
+df = pd.read_csv("/content/clean_dynamic_pricing_dataset.csv")
 df.head()
 
 # shows the amount of profit each product gains or checks how much profitable a product is.

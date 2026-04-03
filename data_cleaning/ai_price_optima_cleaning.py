@@ -23,7 +23,7 @@ df["Date"] = pd.to_datetime(df["Date"], format="%d-%m-%Y")
 # checks the datatypes of each column
 df.dtypes
 
-# unique values for each categorical column
+# uniqyue values for each categorical column
 for col in df.select_dtypes(include='object').columns:
     print(df[col].unique())
 
@@ -121,24 +121,6 @@ IQR = Q3 - Q1
 lower = Q1 - 1.5*IQR
 upper = Q3 + 1.5*IQR
 df = df[(df["price"] >= lower) & (df["price"] <= upper)]
-
-"""### One-Hot Encoding Categorical Features
-
-To prepare our categorical features for machine learning models, we'll apply one-hot encoding. This method transforms categorical variables into a numerical format, where each category value is converted into a new column, and assigned a 1 or 0 (true/false) value. This is particularly useful for nominal categories, as it avoids implying any arbitrary order.
-
-We will exclude `store_id` and `product_id` from this process, as they are typically treated as identifiers rather than features that need encoding.
-"""
-
-# Identify categorical columns to be encoded, excluding 'store_id' and 'product_id'
-categorical_cols = [col for col in df.select_dtypes(include='object').columns if col not in ['store_id', 'product_id']]
-
-# Apply one-hot encoding
-df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
-
-bool_cols=df.select_dtypes(include='bool').columns
-df[bool_cols] = df[bool_cols].astype(int)
-
-df.head()
 
 # saved the cleaned csv file
 df.to_csv('clean_dynamic_pricing_dataset.csv', index=False)
