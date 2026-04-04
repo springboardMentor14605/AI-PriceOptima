@@ -1,8 +1,0 @@
-************* Module pricing_model
-c:\Users\ganga\OneDrive\Desktop\AI-PriceOptima\AI-PriceOptima\PriceOptima\models\pricing_model.py:1:0: C0114: Missing module docstring (missing-module-docstring)
-c:\Users\ganga\OneDrive\Desktop\AI-PriceOptima\AI-PriceOptima\PriceOptima\models\pricing_model.py:46:0: C0103: Constant name "X_train" doesn't conform to UPPER_CASE naming style (invalid-name)
-c:\Users\ganga\OneDrive\Desktop\AI-PriceOptima\AI-PriceOptima\PriceOptima\models\pricing_model.py:46:9: C0103: Constant name "X_test" doesn't conform to UPPER_CASE naming style (invalid-name)
-
-------------------------------------------------------------------
-Your code has been rated at 9.21/10 (previous run: 9.21/10, +0.00)
-

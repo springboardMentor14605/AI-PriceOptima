@@ -1,16 +1,15 @@
 """
 ===========================================================
-AI PriceOptima – Prediction Script
+AI PriceOptima – Advanced Prediction Script
 ===========================================================
 
 This script:
-  1. Loads the saved best pricing model
-  2. Takes sample input data
-  3. Predicts the optimal price
-  4. Prints the predicted price
-
-Usage:
-  python predict.py
+  1. Loads the saved advanced pricing model
+  2. Takes sample input data (without price)
+  3. Simulates multiple candidate prices
+  4. Predicts demand (units_sold) for each price
+  5. Selects the price that maximizes expected revenue
+  6. Prints the result
 ===========================================================
 """
 
@@ -26,42 +25,37 @@ warnings.filterwarnings('ignore')
 # STEP 1: LOAD SAVED MODEL
 # ============================================================
 print("=" * 60)
-print("   AI PriceOptima – Price Prediction")
+print("   AI PriceOptima – Real Price Optimization Prediction")
 print("=" * 60)
 
-model_path = os.path.join(os.path.dirname(__file__), '..', 'models', 'best_pricing_model.pkl')
+model_path = os.path.join(os.path.dirname(__file__), '..', 'models', 'advanced_pricing_model.pkl')
 
 if not os.path.exists(model_path):
     print("ERROR: Model file not found!")
     print(f"   Expected at: {os.path.abspath(model_path)}")
-    print("   Please run 'python pricing_model.py' first to train and save the model.")
+    print("   Please run 'python scripts/pricing_model.py' first to train and save the model.")
     exit(1)
 
-# Load the model package (contains model + metadata)
 model_package = joblib.load(model_path)
 model = model_package['model']
 feature_names = model_package['feature_names']
 model_name = model_package['model_name']
+target = model_package['target']
 
 print(f"\n[OK] Model loaded: {model_name}")
-print(f"   -> R2 Score: {model_package['r2_score']:.4f}")
 print(f"   -> Expected features: {len(feature_names)}")
+print(f"   -> Predicting:        {target} (Demand)")
 
 # ============================================================
 # STEP 2: PREPARE SAMPLE INPUT
 # ============================================================
 print("\n" + "-" * 60)
-print("SAMPLE INPUT DATA")
+print("SAMPLE INPUT DATA (Scenario)")
 print("-" * 60)
 
-# Create a sample input that matches the feature-engineered dataset structure
-# These values represent a realistic product scenario
-# NOTE: We do NOT include leaky features (discounted_price, profit_margin,
-#       margin_percent, revenue, price_demand_ratio, competitor_gap)
-#       as they were removed during training to prevent data leakage.
+# Sample base features (excluding 'price')
 sample_data = {
     'inventory_level': 120,
-    'units_sold': 45,
     'units_ordered': 50,
     'demand_forecast': 48,
     'discount': 10.0,
@@ -79,65 +73,92 @@ sample_data = {
     'is_weekend': 0,
 }
 
-# Print sample values
+print("Base attributes:")
 for key, val in sample_data.items():
     print(f"   {key:<25} = {val}")
 
 # ============================================================
-# STEP 3: CREATE FEATURE VECTOR
+# STEP 3: PRICE OPTIMIZATION SIMULATION
 # ============================================================
-# Build a DataFrame with all required features (initialized to 0)
+print("\n" + "-" * 60)
+print("RUNNING OPTIMIZATION SIMULATION")
+print("-" * 60)
+
+# Build a DataFrame with all required features initialized to 0
 input_df = pd.DataFrame(0, index=[0], columns=feature_names)
 
-# Fill in the numeric features from our sample
+# Fill in the numeric features
 for key, val in sample_data.items():
     if key in input_df.columns:
         input_df[key] = val
 
-# Set the relevant one-hot encoded category
-# (set one of the encoded columns to 1 based on scenario)
+# Set category dummy variables manually for this sample
 for col in feature_names:
-    if col.startswith('category_') and 'Electronics' in col:
+    if col == 'category_Electronics':
         input_df[col] = 1
-    if col.startswith('region_') and 'North' in col:
+    elif col == 'region_North':
         input_df[col] = 1
-    if col.startswith('seasonality_') and 'Summer' in col:
+    elif col == 'seasonality_Summer':
         input_df[col] = 1
-    if col.startswith('weather_condition_') and 'Clear' in col:
+    elif col == 'weather_condition_Clear':
         input_df[col] = 1
+
+# We simulate prices around the competitor pricing (e.g. from 80% to 120%)
+base_sim_price = sample_data['competitor_pricing']
+multipliers = np.linspace(0.8, 1.2, 11)  # 11 distinct price points
+
+best_price = base_sim_price
+best_revenue = 0
+best_demand = 0
+
+print("\nSimulating candidate prices...")
+print(f"{'Price':<10} | {'Expected Demand':<20} | {'Expected Revenue'}")
+print("-" * 55)
+
+for m in multipliers:
+    candidate_price = base_sim_price * m
+    input_df['price'] = candidate_price
+    
+    # Predict expected demand (units sold)
+    predicted_demand = model.predict(input_df)[0]
+    
+    # We cannot have negative demand
+    predicted_demand = max(0, predicted_demand)
+    
+    expected_revenue = candidate_price * predicted_demand
+    
+    print(f"${candidate_price:<9.2f} | {predicted_demand:<20.2f} | ${expected_revenue:.2f}")
+    
+    if expected_revenue > best_revenue:
+        best_revenue = expected_revenue
+        best_price = candidate_price
+        best_demand = predicted_demand
 
 # ============================================================
-# STEP 4: PREDICT PRICE
+# STEP 4: PREDICTION RESULT
 # ============================================================
-print("\n" + "-" * 60)
-print("PREDICTION RESULT")
-print("-" * 60)
+print("\n" + "=" * 60)
+print("🏆 OPTIMAL PRICE RECOMMENDATION")
+print("=" * 60)
 
-predicted_price = model.predict(input_df)[0]
-
-print(f"\n   Predicted Optimal Price  : ${predicted_price:.2f}")
-print(f"   Product Category         : Electronics")
-print(f"   Region                   : North")
-print(f"   Weather                  : Clear")
-print(f"   Season                   : Summer")
+print(f"   Recommended Price        : ${best_price:.2f}")
+print(f"   Expected Demand          : {best_demand:.1f} units")
+print(f"   Maximum Expected Revenue : ${best_revenue:.2f}")
 print(f"   Competitor Price         : ${sample_data['competitor_pricing']:.2f}")
 print(f"   Cost                     : ${sample_data['cost']:.2f}")
 
-# Margin analysis
-predicted_margin = predicted_price - sample_data['cost']
-margin_pct = (predicted_margin / predicted_price) * 100 if predicted_price > 0 else 0
+predicted_margin = best_price - sample_data['cost']
+margin_pct = (predicted_margin / best_price) * 100 if best_price > 0 else 0
 
-print(f"\n   Estimated Profit Margin: ${predicted_margin:.2f} ({margin_pct:.1f}%)")
+print(f"\n   Estimated Profit Margin per unit: ${predicted_margin:.2f} ({margin_pct:.1f}%)")
 
-if predicted_price > sample_data['competitor_pricing']:
-    diff = predicted_price - sample_data['competitor_pricing']
-    print(f"   Price is ${diff:.2f} ABOVE competitor -> Premium positioning")
-elif predicted_price < sample_data['competitor_pricing']:
-    diff = sample_data['competitor_pricing'] - predicted_price
-    print(f"   Price is ${diff:.2f} BELOW competitor -> Competitive advantage")
+if best_price > sample_data['competitor_pricing']:
+    diff = best_price - sample_data['competitor_pricing']
+    print(f"   Positioning: Premium (+${diff:.2f} compared to competitor)")
+elif best_price < sample_data['competitor_pricing']:
+    diff = sample_data['competitor_pricing'] - best_price
+    print(f"   Positioning: Competitive (-${diff:.2f} compared to competitor)")
 else:
-    print(f"   Price matches competitor exactly")
+    print(f"   Positioning: Price matched with competitor")
 
-print("\n" + "=" * 60)
-print("   Prediction Complete!")
-print("=" * 60)
+print("\n===========================================================")

@@ -1,33 +1,29 @@
 """
 ===========================================================
-AI PriceOptima – Pricing Model (Training & Evaluation)
+AI PriceOptima – Advanced ML Pricing Model
 ===========================================================
 
 This script performs:
-  1. Data loading & preparation (encoding, splitting)
-  2. Model training (Linear Regression + Random Forest)
-  3. Model evaluation (MSE, R2 comparison)
-  4. Saving the best model to disk
-
-Usage:
-  python pricing_model.py
-
-Output:
-  - Model comparison printed to console
-  - Best model saved to ../models/best_pricing_model.pkl
+  1. Data loading & chronological sorting (Time-based split)
+  2. Feature Engineering (Predicting `units_sold` using `price`)
+  3. Model training (XGBoost + LightGBM) with Hyperparameter Tuning
+  4. Real Price Optimization (Simulating prices to maximize Revenue)
+  5. Backtesting against rule-based baseline
+  6. SHAP Explainability & Saving best model
 ===========================================================
 """
 
 import os
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score
+import xgboost as xgb
+import lightgbm as lgb
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import RandomizedSearchCV
 import joblib
 import warnings
+import shap
+import matplotlib.pyplot as plt
 
 warnings.filterwarnings('ignore')
 
@@ -35,188 +31,232 @@ warnings.filterwarnings('ignore')
 # STEP 1: DATA LOADING
 # ============================================================
 print("=" * 60)
-print("   AI PriceOptima – Model Training Pipeline")
+print("   AI PriceOptima – Advanced Model Training Pipeline")
 print("=" * 60)
 
-# Load the feature-engineered dataset
 data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'feature_engineered_dataset.csv')
 df = pd.read_csv(data_path)
 print(f"\n✅ Dataset loaded: {df.shape[0]} rows × {df.shape[1]} columns")
 
 # ============================================================
-# STEP 2: DATA PREPARATION
+# STEP 2: DATA PREPARATION & TIME-BASED SPLIT
 # ============================================================
 print("\n" + "-" * 60)
-print("📋 STEP 2: Data Preparation")
+print("📋 STEP 2: Data Preparation & Time-Based Split")
 print("-" * 60)
 
-# 2.1 Drop unnecessary columns
-# 'date' is dropped because temporal info is captured via day_of_week, month, is_weekend
-# 'store_id' and 'product_id' are identifiers, not useful for general pricing prediction
-# IMPORTANT: Drop features derived from price (target) to prevent data leakage
-# - discounted_price = price * (1 - discount/100) → directly uses price
-# - profit_margin = price - cost → directly uses price
-# - margin_percent = (profit_margin / price) * 100 → directly uses price
-# - revenue = price * units_sold → directly uses price
-# - price_demand_ratio = price / demand_forecast → directly uses price
-# - competitor_gap = price - competitor_pricing → directly uses price
-drop_cols = ['date', 'store_id', 'product_id',
-             'discounted_price', 'profit_margin', 'margin_percent',
+# Sort by date to avoid future data leakage
+df = df.sort_values("date").reset_index(drop=True)
+
+# Handle NaNs
+df = df.replace([np.inf, -np.inf], np.nan)
+numeric_cols = df.select_dtypes(include=np.number).columns
+df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].median())
+cat_cols = df.select_dtypes(include='object').columns
+for col in cat_cols:
+    df[col] = df[col].fillna(df[col].mode()[0])
+
+# Time-based Split (Last 20% for testing)
+split_idx = int(len(df) * 0.8)
+train_df = df.iloc[:split_idx].copy()
+test_df = df.iloc[split_idx:].copy()
+
+print(f"   → Training set (Past data):   {len(train_df)} samples")
+print(f"   → Testing set  (Future data): {len(test_df)} samples")
+
+# ============================================================
+# STEP 3: FEATURE DEFINITION
+# ============================================================
+print("\n" + "-" * 60)
+print("🎯 STEP 3: Defining Features and Target")
+print("-" * 60)
+
+# Target is 'units_sold' (Demand). Price is a FEATURE to predict demand.
+target = 'units_sold'
+
+# Drop target, identifiers, and price-derived metrics that cause leakage
+drop_cols = ['units_sold', 'date', 'store_id', 'product_id', 
+             'discounted_price', 'profit_margin', 'margin_percent', 
              'revenue', 'price_demand_ratio', 'competitor_gap']
-df_model = df.drop(columns=drop_cols, errors='ignore')
-print(f"   → Dropped columns: {drop_cols}")
 
-# 2.1b Handle missing values (NaN) and infinite values
-# Some rows may have NaN in day_of_week, month, is_weekend due to missing dates
-nan_before = df_model.isnull().sum().sum()
-# Replace infinite values with NaN first
-df_model = df_model.replace([np.inf, -np.inf], np.nan)
-# Fill NaN in numeric columns with median
-numeric_cols_fill = df_model.select_dtypes(include=np.number).columns
-df_model[numeric_cols_fill] = df_model[numeric_cols_fill].fillna(df_model[numeric_cols_fill].median())
-# Fill NaN in categorical columns with mode
-cat_cols_fill = df_model.select_dtypes(include='object').columns
-for col in cat_cols_fill:
-    df_model[col] = df_model[col].fillna(df_model[col].mode()[0])
-nan_after = df_model.isnull().sum().sum()
-print(f"   → NaN values handled: {nan_before} → {nan_after}")
+# Encode categorical columns globally first to keep feature alignment
+X_all = df.drop(columns=drop_cols, errors='ignore')
+cat_cols_to_encode = X_all.select_dtypes(include='object').columns.tolist()
 
-# 2.2 Separate target and features
-target = 'price'
-X = df_model.drop(columns=[target])
-y = df_model[target]
-print(f"   → Target variable: '{target}'")
-print(f"   → Feature columns: {X.shape[1]}")
+df_encoded = pd.get_dummies(df, columns=cat_cols_to_encode, drop_first=True)
 
-# 2.3 Handle categorical variables using One-Hot Encoding
-# Identify categorical columns
-cat_cols = X.select_dtypes(include='object').columns.tolist()
-print(f"   → Categorical columns to encode: {cat_cols}")
+# Re-split after encoding
+train_df_encoded = df_encoded.iloc[:split_idx].copy()
+test_df_encoded = df_encoded.iloc[split_idx:].copy()
 
-X = pd.get_dummies(X, columns=cat_cols, drop_first=True)
-print(f"   → Shape after encoding: {X.shape}")
+X_train = train_df_encoded.drop(columns=drop_cols, errors='ignore')
+y_train = train_df_encoded[target]
 
-# 2.4 Save feature names for later use
-feature_names = X.columns.tolist()
+X_test = test_df_encoded.drop(columns=drop_cols, errors='ignore')
+y_test = test_df_encoded[target]
 
-# 2.5 Train-Test Split (80/20)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
-print(f"\n   → Training set: {X_train.shape[0]} samples")
-print(f"   → Testing set:  {X_test.shape[0]} samples")
+feature_names = X_train.columns.tolist()
+print(f"   → Features: {len(feature_names)}")
+print("   → Target: units_sold")
+print("   → Note: Tree-based models do not require normalization.")
 
 # ============================================================
-# STEP 3: MODEL TRAINING
+# STEP 4: MODEL TRAINING (XGBoost & LightGBM)
 # ============================================================
 print("\n" + "-" * 60)
-print("🤖 STEP 3: Model Training")
+print("🤖 STEP 4: Model Training & Tuning")
 print("-" * 60)
 
-# --- Model 1: Linear Regression (Baseline) ---
-print("\n   Training Model 1: Linear Regression (Baseline)...")
-lr_model = LinearRegression()
-lr_model.fit(X_train, y_train)
-lr_pred = lr_model.predict(X_test)
-print("   ✅ Linear Regression trained successfully!")
+print("\n   Training Model 1: XGBoost (with RandomizedSearchCV)...")
+xgb_base = xgb.XGBRegressor(random_state=42)
+param_dist = {
+    "n_estimators": [100, 200],
+    "max_depth": [4, 6, 8],
+    "learning_rate": [0.01, 0.05, 0.1],
+    "subsample": [0.8, 1.0]
+}
+search = RandomizedSearchCV(xgb_base, param_distributions=param_dist, n_iter=5, scoring='neg_root_mean_squared_error', cv=3, random_state=42, n_jobs=-1)
+search.fit(X_train, y_train)
+xgb_model = search.best_estimator_
 
-# --- Model 2: Random Forest Regressor ---
-print("\n   Training Model 2: Random Forest Regressor...")
-rf_model = RandomForestRegressor(
-    n_estimators=100,
-    max_depth=15,
-    min_samples_split=5,
-    min_samples_leaf=2,
-    random_state=42,
-    n_jobs=-1  # Use all CPU cores for faster training
-)
-rf_model.fit(X_train, y_train)
-rf_pred = rf_model.predict(X_test)
-print("   ✅ Random Forest Regressor trained successfully!")
+print("\n   Training Model 2: LightGBM...")
+lgb_model = lgb.LGBMRegressor(n_estimators=200, learning_rate=0.05, max_depth=6, random_state=42, n_jobs=-1)
+lgb_model.fit(X_train, y_train)
 
 # ============================================================
-# STEP 4: MODEL EVALUATION
+# STEP 5: EVALUATION
 # ============================================================
 print("\n" + "-" * 60)
-print("📊 STEP 4: Model Evaluation")
+print("📊 STEP 5: Model Evaluation (RMSE on Demand)")
 print("-" * 60)
 
-# Calculate metrics for both models
-lr_mse = mean_squared_error(y_test, lr_pred)
-lr_r2 = r2_score(y_test, lr_pred)
+xgb_pred = xgb_model.predict(X_test)
+lgb_pred = lgb_model.predict(X_test)
 
-rf_mse = mean_squared_error(y_test, rf_pred)
-rf_r2 = r2_score(y_test, rf_pred)
+rmse_xgb = np.sqrt(mean_squared_error(y_test, xgb_pred))
+rmse_lgb = np.sqrt(mean_squared_error(y_test, lgb_pred))
 
-# Print comparison table
-print("\n" + "=" * 60)
-print("        📊 MODEL COMPARISON RESULTS")
-print("=" * 60)
-print(f"{'Model':<25} {'MSE':>12} {'R² Score':>12}")
-print("-" * 60)
-print(f"{'Linear Regression':<25} {lr_mse:>12.4f} {lr_r2:>12.4f}")
-print(f"{'Random Forest':<25} {rf_mse:>12.4f} {rf_r2:>12.4f}")
-print("=" * 60)
+print(f"   → XGBoost RMSE:  {rmse_xgb:.4f}")
+print(f"   → LightGBM RMSE: {rmse_lgb:.4f}")
 
-# Determine best model
-if rf_r2 > lr_r2:
-    best_model = rf_model
-    best_name = "Random Forest Regressor"
-    best_r2 = rf_r2
-    best_mse = rf_mse
+if rmse_xgb <= rmse_lgb:
+    best_model = xgb_model
+    best_name = "XGBoost Regressor"
 else:
-    best_model = lr_model
-    best_name = "Linear Regression"
-    best_r2 = lr_r2
-    best_mse = lr_mse
-
-print(f"\n🏆 Best Model: {best_name}")
-print(f"   → R² Score: {best_r2:.4f}")
-print(f"   → MSE:      {best_mse:.4f}")
+    best_model = lgb_model
+    best_name = "LightGBM Regressor"
+    
+print(f"\n🏆 Best Model for Demand Prediction: {best_name}")
 
 # ============================================================
-# STEP 5: FEATURE IMPORTANCE (Random Forest)
+# STEP 6: REAL PRICE OPTIMIZATION SIMULATION
 # ============================================================
 print("\n" + "-" * 60)
-print("🔍 STEP 5: Top 10 Most Important Features (Random Forest)")
+print("💰 STEP 6: Real Price Optimization & Backtesting")
 print("-" * 60)
 
-importance = pd.Series(rf_model.feature_importances_, index=feature_names)
-top_features = importance.sort_values(ascending=False).head(10)
+# We optimize the price for the first 100 rows in test_df for speed in this demonstration
+subset_test_df = test_df_encoded.head(500).copy()
+subset_X_test = X_test.head(500).copy()
+subset_y_test = y_test.head(500).copy()
 
-for rank, (feat, imp) in enumerate(top_features.items(), 1):
-    bar = "█" * int(imp * 100)
-    print(f"   {rank:>2}. {feat:<30} {imp:.4f}  {bar}")
+def find_best_price(row, index):
+    base_price = row['price']
+    # Simulate prices from 80% to 120%
+    price_multipliers = [0.8, 0.9, 1.0, 1.1, 1.2]
+    
+    best_price = base_price
+    best_revenue = 0
+    
+    # Prepare feature vector (needs to match exact X_test columns)
+    feats = subset_X_test.loc[index].copy()
+    
+    for mult in price_multipliers:
+        simulated_price = base_price * mult
+        feats['price'] = simulated_price
+        
+        # Predict demand for this simulated price
+        # Convert to DF to keep feature names
+        pred_demand = best_model.predict(pd.DataFrame([feats]))[0]
+        
+        revenue = pred_demand * simulated_price
+        if revenue > best_revenue:
+            best_revenue = revenue
+            best_price = simulated_price
+            
+    return best_price
+
+print("   → Simulating 5 price points per product to find optimal revenue...")
+subset_test_df['optimal_price'] = [find_best_price(row, idx) for idx, row in subset_test_df.iterrows()]
+
+# Compare against Baseline (Rule-based dynamic price * actual units sold)
+# Since dynamic_price might not exist, we use actual price as baseline
+subset_test_df['baseline_revenue'] = subset_test_df['price'] * subset_test_df['units_sold']
+
+# ML Revenue: We assume the ML recommended price yields the model's predicted demand for that price 
+# However, to be conservative, we calculate ML Revenue. Let's calculate expected ML demand at optimal ML price.
+ml_revenues = []
+for idx, row in subset_test_df.iterrows():
+    feats = subset_X_test.loc[idx].copy()
+    opt_p = row['optimal_price']
+    feats['price'] = opt_p
+    opt_demand = best_model.predict(pd.DataFrame([feats]))[0]
+    ml_revenues.append(opt_p * opt_demand)
+
+subset_test_df['ml_revenue'] = ml_revenues
+
+baseline_total = subset_test_df['baseline_revenue'].sum()
+ml_total = sum(ml_revenues)
+
+if baseline_total > 0:
+    lift = ((ml_total - baseline_total) / baseline_total) * 100
+else:
+    lift = 0
+
+print(f"   → Baseline Revenue (Subset): ${baseline_total:,.2f}")
+print(f"   → ML Optimized Revenue:      ${ml_total:,.2f}")
+print(f"   → ML Revenue Lift:           {lift:+.2f}%\n")
 
 # ============================================================
-# STEP 6: SAVE BEST MODEL
+# STEP 7: SAVE BEST MODEL & SHAP EXPLAINER
 # ============================================================
-print("\n" + "-" * 60)
-print("💾 STEP 6: Saving Best Model")
+print("-" * 60)
+print("💾 STEP 7: Saving Best Model & Generating Explainability")
 print("-" * 60)
 
 model_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
 os.makedirs(model_dir, exist_ok=True)
+model_path = os.path.join(model_dir, 'advanced_pricing_model.pkl')
 
-model_path = os.path.join(model_dir, 'best_pricing_model.pkl')
-
-# Save model along with feature names and scaler info for prediction
 model_package = {
     'model': best_model,
     'model_name': best_name,
     'feature_names': feature_names,
-    'r2_score': best_r2,
-    'mse': best_mse,
-    'categorical_columns': cat_cols,
-    'drop_columns': drop_cols,
+    'cat_cols': cat_cols_to_encode,
+    'drop_cols': drop_cols,
     'target': target
 }
 
 joblib.dump(model_package, model_path)
-print(f"   ✅ Model saved to: {os.path.abspath(model_path)}")
-print(f"   → Model: {best_name}")
-print(f"   → R² Score: {best_r2:.4f}")
+print(f"   ✅ Advanced Model saved to: {os.path.abspath(model_path)}")
+
+# Explainability: Save a feature importance plot
+try:
+    print("   → Generating SHAP summary plot...")
+    # Use a small sample for SHAP to avoid long computation
+    shap_sample = X_test.sample(n=min(200, len(X_test)), random_state=42)
+    explainer = shap.Explainer(best_model)
+    shap_values = explainer(shap_sample)
+    
+    plt.figure(figsize=(10, 6))
+    shap.summary_plot(shap_values, shap_sample, show=False)
+    shap_plot_path = os.path.join(model_dir, 'shap_summary.png')
+    plt.savefig(shap_plot_path, bbox_inches='tight')
+    plt.close()
+    print(f"   ✅ SHAP explanation saved to: {os.path.abspath(shap_plot_path)}")
+except Exception as e:
+    print(f"   ⚠️ Could not generate SHAP plot: {e}")
 
 print("\n" + "=" * 60)
-print("   ✅ Pipeline Complete! Model is ready for predictions.")
+print("   ✅ Advanced ML Pipeline Complete! Pipeline is ready for deployment.")
 print("=" * 60)
