@@ -13,6 +13,11 @@ app.add_middleware(
 )
 
 df = pd.read_csv("ml_price_predictions.csv")
+df["best_model"] = "XGBoost"
+
+@app.get("/")
+def home():
+    return {"message": "AI PriceOptima API Running Successfully 🚀"}
 
 @app.get("/kpi")
 def get_kpi():
