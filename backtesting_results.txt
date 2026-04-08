@@ -1,0 +1,27 @@
+﻿
+=================== SECTION: BACKTESTING & EVALUATION ===================
+Loaded ML model successfully. Model type: LGBMRegressor
+Running backtest on 500 test samples...
+This will simulate row-by-row real-world inference.
+
+--- Running Baseline System (Rule-based) ---
+Applying pricing rules...
+Pricing rules applied and constraints enforced successfully.
+-> Total Rule-Based Baseline Revenue: $3,557,102.06
+
+--- SECTION: OPTIMIZATION (Predicting Demand Row-by-Row) ---
+-> Total ML Optimized Revenue: $4,351,090.45
+
+Saved daily results to 'data/daily_revenue_tracking.csv'
+
+=================== FINAL SUMMARY ===================
+Best Model:            LightGBM
+Test RMSE:             8.264611976450642
+Total ML Revenue:      $4,351,090.45
+Total Baseline Revenue:$3,557,102.06
+Revenue Lift %:        +22.32%
+
+--- Key Business Insights ---
+- Price negatively impacts demand broadly, dictating the elasticity curves modeled organically.
+- Inventory strongly influences sales, requiring dynamic price-drops during high-stock overages.
+- Our ML model isolates and maximizes the specific price-point per product faster than static rule constraints.

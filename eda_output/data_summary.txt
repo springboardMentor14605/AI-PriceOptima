@@ -1,0 +1,110 @@
+--- AI PriceOptima Dataset Summary ---
+
+Shape: 73100 rows, 17 columns
+
+--- Columns ---
+['Date', 'Store ID', 'Product ID', 'Category', 'Region', 'Inventory Level', 'Units Sold', 'Units Ordered', 'Demand Forecast', 'Price', 'Discount', 'Weather Condition', 'Holiday/Promotion', 'Competitor Pricing', 'Seasonality', 'Visitors', 'Cost']
+
+--- Data Types ---
+Date                   object
+Store ID               object
+Product ID             object
+Category               object
+Region                 object
+Inventory Level         int64
+Units Sold              int64
+Units Ordered           int64
+Demand Forecast       float64
+Price                 float64
+Discount                int64
+Weather Condition      object
+Holiday/Promotion       int64
+Competitor Pricing    float64
+Seasonality            object
+Visitors                int64
+Cost                  float64
+dtype: object
+
+--- Missing Values ---
+Date                  0
+Store ID              0
+Product ID            0
+Category              0
+Region                0
+Inventory Level       0
+Units Sold            0
+Units Ordered         0
+Demand Forecast       0
+Price                 0
+Discount              0
+Weather Condition     0
+Holiday/Promotion     0
+Competitor Pricing    0
+Seasonality           0
+Visitors              0
+Cost                  0
+dtype: int64
+
+--- Duplicates ---
+Duplicate Rows: 0
+
+--- Descriptive Statistics (Numerical) ---
+       Inventory Level  ...          Cost
+count     73100.000000  ...  73100.000000
+mean        274.469877  ...     35.835519
+std         129.949514  ...     17.718792
+min          50.000000  ...      5.050000
+25%         162.000000  ...     20.877500
+50%         273.000000  ...     35.130000
+75%         387.000000  ...     49.552500
+max         500.000000  ...     79.740000
+
+[8 rows x 10 columns]
+
+--- Unique Values in Object Columns ---
+Date: 731 unique categorical values
+
+Store ID: 5 unique categorical values
+Store ID
+S001    14620
+S002    14620
+S003    14620
+S004    14620
+S005    14620
+Name: count, dtype: int64
+
+Product ID: 20 unique categorical values
+
+Category: 5 unique categorical values
+Category
+Furniture      14699
+Toys           14643
+Clothing       14626
+Groceries      14611
+Electronics    14521
+Name: count, dtype: int64
+
+Region: 4 unique categorical values
+Region
+East     18349
+South    18297
+North    18228
+West     18226
+Name: count, dtype: int64
+
+Weather Condition: 4 unique categorical values
+Weather Condition
+Sunny     18290
+Rainy     18278
+Snowy     18272
+Cloudy    18260
+Name: count, dtype: int64
+
+Seasonality: 4 unique categorical values
+Seasonality
+Spring    18317
+Summer    18305
+Winter    18285
+Autumn    18193
+Name: count, dtype: int64
+
