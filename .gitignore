@@ -1,0 +1,4 @@
+node_modules/
+dist/
+UsersAviAppDataLocalnpm-cache
+*__pycache__*
