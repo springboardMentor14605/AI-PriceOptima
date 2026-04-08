@@ -1,0 +1,8 @@
+{
+    "model_name": "XGBoost (Optuna)",
+    "rmse": 0.7638380255286256,
+    "r2": 0.9999501705169678,
+    "training_date": "2026-04-08",
+    "feature_count": 25,
+    "version": "1.0"
+}
