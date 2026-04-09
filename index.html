@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dynamic Pricing Dashboard</title>
+</head>
+<body style="font-family: Arial; text-align: center; margin-top: 50px;">
+
+    <h1>Dynamic Pricing Dashboard 🚀</h1>
+
+    <input id="price" placeholder="Price"><br><br>
+    <input id="inventory" placeholder="Inventory"><br><br>
+    <input id="competitor" placeholder="Competitor Price"><br><br>
+    <input id="visitors" placeholder="Visitors"><br><br>
+
+    <button onclick="predict()">Predict Demand</button>
+
+    <h2 id="result"></h2>
+
+    <script>
+        async function predict() {
+            let data = {
+                price: parseFloat(document.getElementById("price").value),
+                inventory_level: parseFloat(document.getElementById("inventory").value),
+                competitor_pricing: parseFloat(document.getElementById("competitor").value),
+                visitors: parseFloat(document.getElementById("visitors").value)
+            };
+
+            let response = await fetch("http://127.0.0.1:8000/predict", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(data)
+            });
+
+            let result = await response.json();
+
+            document.getElementById("result").innerText =
+                "Predicted Demand: " + result.predicted_demand;
+        }
+    </script>
+
+</body>
+</html>
