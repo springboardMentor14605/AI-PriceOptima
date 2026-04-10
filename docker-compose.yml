@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: priceoptima_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./Outputs:/app/Outputs
+      - ./app/models:/app/app/models
+    environment:
+      - PORT=8000
+
+  ml-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.ml
+    container_name: priceoptima_ml
+    volumes:
+      - ./Outputs:/app/Outputs
+      - ./app/models:/app/app/models
+      - ./Feature Engineering:/app/Feature Engineering
