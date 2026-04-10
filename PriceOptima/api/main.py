@@ -22,6 +22,7 @@ import joblib
 import pandas as pd
 import numpy as np
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -49,6 +50,15 @@ app = FastAPI(
     title="AI PriceOptima API",
     description="Dynamic Pricing Prediction API powered by Machine Learning",
     version="1.0.0",
+)
+
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
