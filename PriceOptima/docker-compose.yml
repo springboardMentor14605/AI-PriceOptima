@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  # 1. First Container: The Machine Learning Backend API
+  backend-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: priceoptima-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app/api
+      - ./models:/app/models
+    # No dependencies needed for the backend
+
+  # 2. Second Container: The Beautiful React Dashboard
+  frontend-dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: priceoptima-dashboard
+    ports:
+      - "5173:5173"
+    environment:
+      # This ensures live-reloading works properly when interacting with code on Windows
+      - CHOKIDAR_USEPOLLING=true 
+    depends_on:
+      - backend-api # Ensures the API starts before the frontend

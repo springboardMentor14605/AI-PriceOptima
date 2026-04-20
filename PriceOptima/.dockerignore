@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+*.pyc
+node_modules/
+.vscode/
+
+# Ignore frontend build
+dashboard/
+notebooks/
+data/
+
+# Only include api and models when pushing context
