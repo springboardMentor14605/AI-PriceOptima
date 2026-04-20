@@ -1,0 +1,10 @@
+2026-03-25 17:07:58,007 - INFO - Ingestion started
+2026-03-25 17:07:58,344 - ERROR - Error: 'demand'
+2026-03-25 17:13:28,322 - INFO - Ingestion started
+2026-03-25 17:13:28,700 - ERROR - Error: (psycopg2.OperationalError) could not translate host name "1803@localhost" to address: Non-recoverable failure in name resolution
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-03-25 17:16:21,025 - INFO - Ingestion started
+2026-03-25 17:16:24,145 - INFO - Ingestion successful
+2026-03-25 18:20:55,625 - INFO - Ingestion started
+2026-03-25 18:20:58,149 - INFO - Ingestion successful

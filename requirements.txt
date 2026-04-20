@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pydantic
+xgboost
+scikit-learn
+lightgbm
+optuna
+shap
