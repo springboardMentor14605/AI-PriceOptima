@@ -1,175 +1,142 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import axios from "axios";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar
+} from "recharts";
 
 function App() {
-  const [kpi, setKpi] = useState({});
-  const [predictions, setPredictions] = useState([]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const [formData, setFormData] = useState({
+    inventory_level: "",
+    units_sold: "",
+    demand_forecast: "",
+    competitor_pricing: "",
+    discount: "",
+    visitors: "",
+    profit_margin: "",
+    conversion_rate: "",
+  });
 
-  const loadData = () => {
-    axios.get("http://127.0.0.1:8000/kpi")
-      .then(res => setKpi(res.data))
-      .catch(err => console.log("KPI Error:", err));
+  const [prediction, setPrediction] = useState(null);
+  const [recommendation, setRecommendation] = useState("");
+  const [revenueLift, setRevenueLift] = useState(null);
 
-    axios.get("http://127.0.0.1:8000/predictions")
-      .then(res => setPredictions(res.data.slice(0, 5)))
-      .catch(err => console.log("Prediction Error:", err));
+  // Handle input
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value === "" ? 0 : parseFloat(e.target.value)
+    });
   };
+
+  // API call
+  const handleSubmit = () => {
+  console.log("Sending:", formData);
+
+  axios.post("http://127.0.0.1:8000/predict", formData)
+    .then(res => {
+      console.log("Response:", res.data);
+
+      if (res.data.predicted_price !== undefined) {
+        setPrediction(res.data.predicted_price);
+        setRecommendation(res.data.recommendation);
+        setRevenueLift(res.data.revenue_lift);
+      } else {
+        alert("Prediction failed!");
+      }
+    })
+    .catch(err => {
+      console.log("ERROR:", err);
+      alert("Backend error!");
+    });
+};
+
+  // 📈 Graph data
+  const trendData = [
+    { name: "Low Demand", price: prediction * 0.8 },
+    { name: "Normal", price: prediction },
+    { name: "High Demand", price: prediction * 1.2 }
+  ];
+
+  const compareData = [
+    { name: "Competitor", price: formData.competitor_pricing },
+    { name: "AI Price", price: prediction }
+  ];
 
   return (
     <div style={{
       minHeight: "100vh",
+      padding: "30px",
       background: "linear-gradient(135deg, #0f172a, #1e293b)",
       color: "white",
-      padding: "30px",
       fontFamily: "Arial"
     }}>
 
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: "30px" }}>
-        <h1 style={{ fontSize: "42px", marginBottom: "10px" }}>
-          AI PriceOptima Dashboard 🚀
-        </h1>
-        <p style={{ fontSize: "18px", opacity: "0.8" }}>
-          Real-Time Dynamic Pricing Intelligence System
-        </p>
-        <p>{new Date().toLocaleString()}</p>
-      </div>
+      <h1 style={{ textAlign: "center" }}>AI PriceOptima 🚀</h1>
 
-      {/* KPI Cards */}
-      <div style={{
-        display: "flex",
-        gap: "20px",
-        justifyContent: "center",
-        flexWrap: "wrap"
+      <h2>Enter Product Details</h2>
+
+      {Object.keys(formData).map((key) => (
+        <div key={key}>
+          <label>{key}</label>
+          <input
+            type="number"
+            name={key}
+            onChange={handleChange}
+            style={{ margin: "5px", padding: "8px", width: "200px" }}
+          />
+        </div>
+      ))}
+
+      <button onClick={handleSubmit} style={{
+        marginTop: "15px",
+        padding: "10px 20px",
+        background: "#38bdf8",
+        border: "none",
+        borderRadius: "10px",
+        cursor: "pointer"
       }}>
+        Predict Price
+      </button>
 
-        <div style={cardStyle}>
-          <h3>Average Price</h3>
-          <h2>{kpi.avg_predicted_price}</h2>
-        </div>
+      {prediction !== null && (
+        <>
+          <h2>Predicted Price: ₹{prediction}</h2>
+          <h3>Recommendation: {recommendation}</h3>
+          <h3>Revenue Lift: {revenueLift}%</h3>
 
-        <div style={cardStyle}>
-          <h3>Max Price</h3>
-          <h2>{kpi.max_price}</h2>
-        </div>
+          {/* 📈 Trend Graph */}
+          <div style={{ marginTop: "30px" }}>
+            <h3>Demand vs Price Trend</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" stroke="#fff"/>
+                <YAxis stroke="#fff"/>
+                <Tooltip />
+                <Line type="monotone" dataKey="price" stroke="#38bdf8" strokeWidth={3}/>
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
 
-        <div style={cardStyle}>
-          <h3>Min Price</h3>
-          <h2>{kpi.min_price}</h2>
-        </div>
-
-        <div style={cardStyle}>
-          <h3>Revenue Lift</h3>
-          <h2>+12%</h2>
-        </div>
-
-        <div style={cardStyle}>
-          <h3>AI Status</h3>
-          <h2>Active ✅</h2>
-        </div>
-      </div>
-
-      {/* Refresh Button */}
-      <div style={{ textAlign: "center", marginTop: "25px" }}>
-        <button
-          onClick={loadData}
-          style={{
-            padding: "12px 25px",
-            borderRadius: "12px",
-            border: "none",
-            background: "#38bdf8",
-            color: "white",
-            fontSize: "16px",
-            cursor: "pointer"
-          }}
-        >
-          Refresh Data
-        </button>
-      </div>
-
-      {/* AI Recommendation */}
-      <div style={sectionStyle}>
-        <h2>AI Recommendation Engine 🤖</h2>
-        <h3>Suggested Action: Increase Price 🔺</h3>
-        <p>Demand trend indicates strong buying behavior.</p>
-      </div>
-
-      {/* Revenue Trend */}
-      <div style={sectionStyle}>
-        <h2>Revenue Trend 📈</h2>
-        <h3>Projected Revenue Lift: +12%</h3>
-        <p>Compared to static pricing baseline.</p>
-      </div>
-
-      {/* Prediction Table */}
-      <div style={sectionStyle}>
-        <h2>Recent Price Predictions 📊</h2>
-
-        <table style={{
-          width: "100%",
-          marginTop: "15px",
-          borderCollapse: "collapse"
-        }}>
-          <thead>
-            <tr>
-              <th style={tableHead}>Product ID</th>
-              <th style={tableHead}>Optimal Price</th>
-              <th style={tableHead}>Best Model</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {predictions.map((item, index) => (
-              <tr key={index}>
-                <td style={tableCell}>{item.product_id}</td>
-                <td style={tableCell}>{item.optimal_price}</td>
-                <td style={tableCell}>{item.best_model || "XGBoost"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Top Product */}
-      <div style={sectionStyle}>
-        <h2>Top Opportunity Product 🌟</h2>
-        <h3>Product ID: P0013</h3>
-        <p>Highest pricing opportunity detected.</p>
-      </div>
+          {/* 📊 Comparison Graph */}
+          <div style={{ marginTop: "30px" }}>
+            <h3>Competitor vs AI Price</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={compareData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" stroke="#fff"/>
+                <YAxis stroke="#fff"/>
+                <Tooltip />
+                <Bar dataKey="price" fill="#38bdf8" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
 
     </div>
   );
 }
-
-const cardStyle = {
-  background: "rgba(255,255,255,0.12)",
-  padding: "25px",
-  borderRadius: "20px",
-  minWidth: "220px",
-  textAlign: "center",
-  backdropFilter: "blur(10px)",
-  boxShadow: "0 8px 20px rgba(0,0,0,0.3)"
-};
-
-const sectionStyle = {
-  marginTop: "30px",
-  background: "rgba(255,255,255,0.08)",
-  padding: "20px",
-  borderRadius: "20px"
-};
-
-const tableHead = {
-  padding: "12px",
-  borderBottom: "1px solid white"
-};
-
-const tableCell = {
-  padding: "12px",
-  textAlign: "center"
-};
 
 export default App;
